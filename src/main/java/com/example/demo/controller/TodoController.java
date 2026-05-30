@@ -1,67 +1,68 @@
 package com.example.demo.controller;
 
-import com.example.demo.dto.ApiResponse;
-import com.example.demo.dto.TodoDto;
-import com.example.demo.service.TodoService;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
-import java.util.Map;
-
+import com.example.demo.repository.*;
+import com.example.demo.modals.*;
 @RestController
 @RequestMapping("/api/todos")
+@CrossOrigin(origins = "*")   // Allow all origins for development
 @RequiredArgsConstructor
 public class TodoController {
 
-    private final TodoService todoService;
+    private final TodoRepository todoRepository;
 
+    // GET all todos
     @GetMapping
-    public ResponseEntity<ApiResponse<List<TodoDto>>> getAllTodos() {
-        List<TodoDto> todos = todoService.getAllTodos();
-        return ResponseEntity.ok(ApiResponse.success(todos));
+    public List<Todo> getAll() {
+        return todoRepository.findAll();
     }
 
+    // GET single todo
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<TodoDto>> getTodoById(@PathVariable Long id) {
-        TodoDto todo = todoService.getTodoById(id);
-        return ResponseEntity.ok(ApiResponse.success(todo));
+    public ResponseEntity<Todo> getById(@PathVariable Long id) {
+        return todoRepository.findById(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 
+    // POST create todo
     @PostMapping
-    public ResponseEntity<ApiResponse<TodoDto>> createTodo(
-            @Valid @RequestBody TodoDto request) {
-        TodoDto todo = todoService.createTodo(request);
-        return ResponseEntity
-                .status(HttpStatus.CREATED)
-                .body(ApiResponse.success("Todo created successfully", todo));
+    public ResponseEntity<Todo> create(@RequestBody Todo todo) {
+        Todo saved = todoRepository.save(todo);
+        return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 
+    // PUT update todo
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<TodoDto>> updateTodo(
-            @PathVariable Long id,
-            @Valid @RequestBody TodoDto request) {
-        TodoDto todo = todoService.updateTodo(id, request);
-        return ResponseEntity.ok(ApiResponse.success("Todo updated successfully", todo));
+    public ResponseEntity<Todo> update(@PathVariable Long id, @RequestBody Todo updated) {
+        return todoRepository.findById(id).map(todo -> {
+            todo.setTitle(updated.getTitle());
+            todo.setDescription(updated.getDescription());
+            todo.setCompleted(updated.isCompleted());
+            return ResponseEntity.ok(todoRepository.save(todo));
+        }).orElse(ResponseEntity.notFound().build());
     }
 
+    // PATCH toggle completed
     @PatchMapping("/{id}/toggle")
-    public ResponseEntity<ApiResponse<TodoDto>> toggleTodo(@PathVariable Long id) {
-        TodoDto todo = todoService.toggleTodo(id);
-        return ResponseEntity.ok(ApiResponse.success("Todo toggled", todo));
+    public ResponseEntity<Todo> toggle(@PathVariable Long id) {
+        return todoRepository.findById(id).map(todo -> {
+            todo.setCompleted(!todo.isCompleted());
+            return ResponseEntity.ok(todoRepository.save(todo));
+        }).orElse(ResponseEntity.notFound().build());
     }
 
+    // DELETE todo
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> deleteTodo(@PathVariable Long id) {
-        todoService.deleteTodo(id);
-        return ResponseEntity.ok(ApiResponse.success("Todo deleted successfully", null));
-    }
-
-    @GetMapping("/stats")
-    public ResponseEntity<ApiResponse<Map<String, Long>>> getStats() {
-        Map<String, Long> stats = todoService.getStats();
-        return ResponseEntity.ok(ApiResponse.success(stats));
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
+        if (!todoRepository.existsById(id)) {
+            return ResponseEntity.notFound().build();
+        }
+        todoRepository.deleteById(id);
+        return ResponseEntity.noContent().build();
     }
 }
